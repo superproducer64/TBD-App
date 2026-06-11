@@ -719,12 +719,8 @@
     </div>
 
     <div class="sidebar-section">
-      <h3>Traffic API Key</h3>
-      <div style="position:relative;">
-        <input type="password" id="gmapsKey" placeholder="Paste Google Maps API key"
-          style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none;"/>
-      </div>
-      <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:6px;text-align:center;" id="trafficStatus">Key not set</div>
+      <h3>Traffic</h3>
+      <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-align:center;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;" id="trafficStatus">Google Maps · Server-side</div>
     </div>
 
     <div class="sidebar-section">
@@ -878,19 +874,25 @@ async function fetchFloodData(lat, lng) {
     `&returnGeometry=false` +
     `&f=json`;
 
-  // Call our Vercel proxy — handles CORS server-side
-  try {
-    const proxyUrl = `/api/flood?lat=${lat}&lng=${lng}`;
-    const res = await fetch(proxyUrl);
-    if (!res.ok) throw new Error(`Proxy status ${res.status}`);
-    const data = await res.json();
-    if (data.error) { console.warn('FEMA proxy:', data.error); return null; }
-    console.log('FEMA flood data:', data);
-    return data;
-  } catch(e) {
-    console.warn('Flood proxy error:', e.message);
-    return null;
+  // Try WFS first, fall back to REST
+  for (const [label, url, parser] of [
+    ['WFS', wfsUrl, parseWFS],
+    ['REST', restUrl, parseREST],
+  ]) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const parsed = parser(data, lat, lng);
+      if (parsed) {
+        console.log(`FEMA flood data via ${label}:`, parsed);
+        return parsed;
+      }
+    } catch(e) {
+      console.warn(`FEMA ${label} error:`, e.message);
+    }
   }
+  return null;
 }
 
 function parseWFS(data, lat, lng) {
@@ -1021,8 +1023,7 @@ function getNextMondayMorning() {
 }
 
 async function fetchTrafficData(lat, lng) {
-  const key = document.getElementById('gmapsKey')?.value?.trim();
-  if (!key) return null;
+  // API key is stored server-side in Vercel env vars — no client key needed
 
   const origins = `${lat},${lng}`;
   const destinations = TRAFFIC_DESTINATIONS
@@ -1040,17 +1041,18 @@ async function fetchTrafficData(lat, lng) {
 
   // Note: Distance Matrix requires server-side call to avoid CORS in prod
   // For now use our proxy-friendly endpoint format
-  // Call our Vercel proxy — keeps API key server-side
+  const proxyUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${lat},${lng}&destinations=${destinations}&departure_time=${departureTime}&traffic_model=best_guess&key=${key}`;
+
   try {
-    const proxyUrl = `/api/traffic?lat=${lat}&lng=${lng}&key=${encodeURIComponent(key)}`;
     const res = await fetch(proxyUrl);
-    if (!res.ok) throw new Error(`Proxy status ${res.status}`);
     const data = await res.json();
-    if (data.error) { console.warn('Traffic proxy:', data.error); return null; }
-    console.log('Traffic data:', data);
-    return data;
+    if (data.status !== 'OK') {
+      console.warn('Traffic API status:', data.status);
+      return null;
+    }
+    return parseTrafficData(data, lat, lng);
   } catch(e) {
-    console.warn('Traffic proxy error:', e.message);
+    console.warn('Traffic fetch error:', e.message);
     return null;
   }
 }
@@ -1396,7 +1398,7 @@ async function renderResults(lat, lng, resolvedAddr) {
           <span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">Google Maps</span>
         </div>
         <div class="cat-name">Traffic</div>
-        <div class="cat-label" style="margin-top:8px;">Add API key to score</div>
+        <div class="cat-label" style="margin-top:8px;">Fetching commute data…</div>
         <div class="cat-count">Peak hour commute analysis</div>
       </div>
     </div>
@@ -1710,16 +1712,13 @@ function renderTrafficCard(trafficData, crimeScore) {
 
   if (!trafficData) {
     // Check if key is set — if so, show error; if not, show prompt
-    const key = document.getElementById('gmapsKey')?.value?.trim();
-    if (key) {
-      container.innerHTML = `
-        <div class="cat-card safe" style="opacity:0.6;">
-          <div class="cat-icon">🚗</div>
-          <div class="cat-name">Traffic</div>
-          <div class="cat-label" style="margin-top:8px;color:#ef4444;">API error — check key</div>
-          <div class="cat-count">Check console for details</div>
-        </div>`;
-    }
+    container.innerHTML = `
+      <div class="cat-card safe" style="opacity:0.6;">
+        <div class="cat-icon">🚗</div>
+        <div class="cat-name">Traffic</div>
+        <div class="cat-label" style="margin-top:8px;color:#ef4444;">Traffic data unavailable</div>
+        <div class="cat-count">Check console for details</div>
+      </div>`;
     return;
   }
 
@@ -1870,14 +1869,7 @@ document.getElementById('geoBtn').addEventListener('click', () => {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 
 renderWeightList();
-// Traffic API key listener — re-fetch when key is entered
-document.getElementById('gmapsKey').addEventListener('change', async () => {
-  const key = document.getElementById('gmapsKey').value.trim();
-  if (!key || !currentCenter) return;
-  document.getElementById('trafficStatus').textContent = 'Fetching traffic…';
-  const trafficData = await fetchTrafficData(currentCenter.lat, currentCenter.lng);
-  renderTrafficCard(trafficData, 0);
-});
+// Traffic fires automatically — API key is server-side in Vercel
 
 // ENV upload listeners
 document.getElementById('envUploadZone').addEventListener('click', () => {
