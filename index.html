@@ -849,50 +849,18 @@ function buildBoundingBox(lat, lng, milesRadius) {
 }
 
 async function fetchFloodData(lat, lng) {
-  // Small 0.1 mile box around the property — keeps feature count minimal
-  const bbox = buildBoundingBox(lat, lng, 0.1);
-  const bboxStr = `${bbox.minLng},${bbox.minLat},${bbox.maxLng},${bbox.maxLat}`;
-
-  // Primary: FEMA NFHL WFS endpoint (GeoJSON output)
-  const wfsUrl = `https://hazards.fema.gov/gis/nfhl/services/public/NFHL/MapServer/WFSServer` +
-    `?SERVICE=WFS` +
-    `&VERSION=2.0.0` +
-    `&REQUEST=GetFeature` +
-    `&TYPENAMES=NFHL:S_FLD_HAZ_AR` +
-    `&BBOX=${bboxStr},EPSG:4326` +
-    `&SRSNAME=EPSG:4326` +
-    `&outputFormat=GEOJSON` +
-    `&COUNT=10`;
-
-  // Fallback: original REST MapServer point query
-  const restUrl = `https://hazards.fema.gov/gis/nfhl/rest/services/public/NFHL/MapServer/28/query` +
-    `?geometry=${lng},${lat}` +
-    `&geometryType=esriGeometryPoint` +
-    `&inSR=4326` +
-    `&spatialRel=esriSpatialRelIntersects` +
-    `&outFields=FLD_ZONE,ZONE_SUBTY,SFHA_TF,STATIC_BFE,STUDY_TYP` +
-    `&returnGeometry=false` +
-    `&f=json`;
-
-  // Try WFS first, fall back to REST
-  for (const [label, url, parser] of [
-    ['WFS', wfsUrl, parseWFS],
-    ['REST', restUrl, parseREST],
-  ]) {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const data = await res.json();
-      const parsed = parser(data, lat, lng);
-      if (parsed) {
-        console.log(`FEMA flood data via ${label}:`, parsed);
-        return parsed;
-      }
-    } catch(e) {
-      console.warn(`FEMA ${label} error:`, e.message);
-    }
+  // Call Vercel proxy — handles CORS and WebSEAL blocking server-side
+  try {
+    const res = await fetch(`/api/flood?lat=${lat}&lng=${lng}`);
+    if (!res.ok) throw new Error(`Proxy status ${res.status}`);
+    const data = await res.json();
+    if (data.error) { console.warn('Flood proxy:', data.error); return null; }
+    console.log('Flood data:', data);
+    return data;
+  } catch(e) {
+    console.warn('Flood proxy error:', e.message);
+    return null;
   }
-  return null;
 }
 
 function parseWFS(data, lat, lng) {
@@ -1023,36 +991,16 @@ function getNextMondayMorning() {
 }
 
 async function fetchTrafficData(lat, lng) {
-  // API key is stored server-side in Vercel env vars — no client key needed
-
-  const origins = `${lat},${lng}`;
-  const destinations = TRAFFIC_DESTINATIONS
-    .map(d => `${d.lat},${d.lng}`).join('|');
-  const departureTime = getNextMondayMorning();
-
-  // Use CORS proxy pattern via Google's own jsonp-style callback isn't needed
-  // Distance Matrix supports direct browser calls with valid API key
-  const url = `https://maps.googleapis.com/maps/api/distancematrix/json` +
-    `?origins=${origins}` +
-    `&destinations=${encodeURIComponent(destinations)}` +
-    `&departure_time=${departureTime}` +
-    `&traffic_model=best_guess` +
-    `&key=${key}`;
-
-  // Note: Distance Matrix requires server-side call to avoid CORS in prod
-  // For now use our proxy-friendly endpoint format
-  const proxyUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${lat},${lng}&destinations=${destinations}&departure_time=${departureTime}&traffic_model=best_guess&key=${key}`;
-
+  // Call Vercel proxy — API key stored server-side in environment variables
   try {
-    const res = await fetch(proxyUrl);
+    const res = await fetch(`/api/traffic?lat=${lat}&lng=${lng}`);
+    if (!res.ok) throw new Error(`Proxy status ${res.status}`);
     const data = await res.json();
-    if (data.status !== 'OK') {
-      console.warn('Traffic API status:', data.status);
-      return null;
-    }
-    return parseTrafficData(data, lat, lng);
+    if (data.error) { console.warn('Traffic proxy:', data.error); return null; }
+    console.log('Traffic data:', data);
+    return data;
   } catch(e) {
-    console.warn('Traffic fetch error:', e.message);
+    console.warn('Traffic proxy error:', e.message);
     return null;
   }
 }
