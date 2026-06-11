@@ -1,24 +1,25 @@
-// api/traffic.js — Google Maps Distance Matrix Proxy (Edge Runtime)
-export const config = { runtime: 'edge' };
+// api/traffic.js — Google Maps Distance Matrix Proxy
+// Node.js runtime (not edge) for reliable process.env access
+export const config = { runtime: 'nodejs' };
 
-export default async function handler(req) {
-  const { searchParams } = new URL(req.url);
-  const lat = searchParams.get('lat');
-  const lng = searchParams.get('lng');
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Content-Type', 'application/json');
 
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-  };
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const { lat, lng } = req.query;
 
   if (!lat || !lng) {
-    return new Response(JSON.stringify({ error: 'lat and lng required' }), { status: 400, headers });
+    return res.status(400).json({ error: 'lat and lng required' });
   }
 
-  // Key stored securely in Vercel environment variables — never exposed to browser
   const key = process.env.GOOGLE_MAPS_KEY;
   if (!key) {
-    return new Response(JSON.stringify({ error: 'API key not configured' }), { status: 500, headers });
+    return res.status(500).json({ 
+      error: 'API key not configured',
+      hint: 'Set GOOGLE_MAPS_KEY in Vercel environment variables'
+    });
   }
 
   const destinations = [
@@ -39,14 +40,19 @@ export default async function handler(req) {
   monday.setHours(14, 0, 0, 0);
   const departureTime = Math.floor(monday.getTime() / 1000);
 
-  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${lat},${lng}&destinations=${encodeURIComponent(destStr)}&departure_time=${departureTime}&traffic_model=best_guess&key=${key}`;
+  const url = `https://maps.googleapis.com/maps/api/distancematrix/json` +
+    `?origins=${lat},${lng}` +
+    `&destinations=${encodeURIComponent(destStr)}` +
+    `&departure_time=${departureTime}` +
+    `&traffic_model=best_guess` +
+    `&key=${key}`;
 
   try {
-    const res = await fetch(url);
-    const data = await res.json();
+    const response = await fetch(url);
+    const data = await response.json();
 
     if (data.status !== 'OK') {
-      return new Response(JSON.stringify({ error: `Google API: ${data.status}` }), { headers });
+      return res.status(200).json({ error: `Google API: ${data.status}` });
     }
 
     const routes = [];
@@ -81,9 +87,9 @@ export default async function handler(req) {
       sorted.slice(0, 3).reduce((s, r) => s + r.routeScore, 0) / Math.min(3, sorted.length)
     );
 
-    return new Response(JSON.stringify({ routes, overallScore }), { headers });
+    return res.status(200).json({ routes, overallScore });
 
   } catch(e) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
+    return res.status(500).json({ error: e.message });
   }
 }
