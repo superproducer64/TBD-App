@@ -5,15 +5,20 @@ export default async function handler(req) {
   const { searchParams } = new URL(req.url);
   const lat = searchParams.get('lat');
   const lng = searchParams.get('lng');
-  const key = searchParams.get('key');
 
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
   };
 
-  if (!lat || !lng || !key) {
-    return new Response(JSON.stringify({ error: 'lat, lng, and key required' }), { status: 400, headers });
+  if (!lat || !lng) {
+    return new Response(JSON.stringify({ error: 'lat and lng required' }), { status: 400, headers });
+  }
+
+  // Key stored securely in Vercel environment variables — never exposed to browser
+  const key = process.env.GOOGLE_MAPS_KEY;
+  if (!key) {
+    return new Response(JSON.stringify({ error: 'API key not configured' }), { status: 500, headers });
   }
 
   const destinations = [
@@ -56,11 +61,11 @@ export default async function handler(req) {
       const congestionRatio = trafficSecs / (baseSecs || 1);
 
       routes.push({
-        destination:    dest.name,
+        destination:     dest.name,
         distMiles,
-        baseMins:       Math.round(baseSecs / 60),
-        trafficMins:    Math.round(trafficSecs / 60),
-        delayMins:      Math.round((trafficSecs - baseSecs) / 60),
+        baseMins:        Math.round(baseSecs / 60),
+        trafficMins:     Math.round(trafficSecs / 60),
+        delayMins:       Math.round((trafficSecs - baseSecs) / 60),
         congestionRatio: parseFloat(congestionRatio.toFixed(2)),
         routeScore: Math.min(100, Math.round(
           congestionRatio >= 2.0  ? 90 :
