@@ -1,12 +1,9 @@
 // api/traffic.js — Google Maps Distance Matrix Proxy
-// Node.js runtime (not edge) for reliable process.env access
 export const config = { runtime: 'nodejs' };
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { lat, lng } = req.query;
 
@@ -14,11 +11,21 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'lat and lng required' });
   }
 
-  const key = process.env.GOOGLE_MAPS_KEY;
+  // Try multiple env var access patterns
+  const key = process.env.GOOGLE_MAPS_KEY 
+    || process.env['GOOGLE_MAPS_KEY']
+    || null;
+
+  // Debug: show what env vars are visible (names only, not values)
+  const envKeys = Object.keys(process.env).filter(k => 
+    !k.includes('PATH') && !k.includes('HOME') && !k.includes('USER')
+  );
+
   if (!key) {
-    return res.status(500).json({ 
+    return res.status(200).json({ 
       error: 'API key not configured',
-      hint: 'Set GOOGLE_MAPS_KEY in Vercel environment variables'
+      visibleEnvVars: envKeys,
+      nodeVersion: process.version,
     });
   }
 
@@ -31,7 +38,6 @@ export default async function handler(req, res) {
   ];
 
   const destStr = destinations.map(d => `${d.lat},${d.lng}`).join('|');
-
   const now = new Date();
   const day = now.getDay();
   const daysUntilMonday = day === 1 ? 7 : (8 - day) % 7 || 7;
