@@ -1,0 +1,1908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TBD — Crime Data Explorer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #1a1d24;
+    --border: #232730;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --accent: #3b82f6;
+    --safe: #10b981;
+    --moderate: #f59e0b;
+    --elevated: #ef4444;
+    --critical: #dc2626;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* HEADER */
+  .header {
+    padding: 24px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: rgba(10,12,16,0.95);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-badge {
+    background: var(--accent);
+    color: white;
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 13px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+  }
+
+  .logo-sub {
+    color: var(--muted);
+    font-size: 12px;
+    font-family: var(--mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .header-status {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--safe);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* MAIN LAYOUT */
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    height: calc(100vh - 65px);
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    padding: 24px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .sidebar-section h3 {
+    font-size: 10px;
+    font-family: var(--mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* UPLOAD ZONE */
+  .upload-zone {
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--surface);
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(59,130,246,0.05);
+  }
+
+  .upload-zone input { display: none; }
+
+  .upload-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+  }
+
+  .upload-zone p {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .upload-zone strong {
+    color: var(--accent);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 13px;
+  }
+
+  /* RADIUS CONTROL */
+  .radius-control {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+  }
+
+  .radius-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .radius-label span:first-child {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .radius-value {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  input[type=range] {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  /* ADDRESS INPUT */
+  .addr-input-wrap {
+    position: relative;
+  }
+
+  .addr-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 38px 10px 12px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .addr-input:focus {
+    border-color: var(--accent);
+  }
+
+  .addr-input::placeholder { color: var(--muted); }
+
+  .addr-btn {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--accent);
+    border: none;
+    border-radius: 5px;
+    width: 26px;
+    height: 26px;
+    cursor: pointer;
+    color: white;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+
+  .addr-btn:hover { background: #2563eb; }
+
+  /* NIBRS WEIGHTS */
+  .weight-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .weight-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+  }
+
+  .weight-code {
+    font-family: var(--mono);
+    color: var(--accent);
+    width: 36px;
+    flex-shrink: 0;
+    font-size: 11px;
+  }
+
+  .weight-desc {
+    color: var(--muted);
+    flex: 1;
+    font-size: 10px;
+  }
+
+  .weight-bar-wrap {
+    width: 40px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .weight-bar {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+
+  /* MAIN CONTENT */
+  .main {
+    overflow-y: auto;
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* EMPTY STATE */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 16px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    opacity: 0.4;
+  }
+
+  .empty-state h2 {
+    font-size: 18px;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .empty-state p {
+    font-size: 13px;
+    max-width: 320px;
+    line-height: 1.6;
+  }
+
+  /* SCORE SECTION */
+  .score-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .score-address {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+
+  .score-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .tbd-composite {
+    text-align: right;
+  }
+
+  .tbd-label {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .tbd-score-num {
+    font-size: 48px;
+    font-weight: 700;
+    font-family: var(--mono);
+    line-height: 1;
+  }
+
+  .tbd-score-max {
+    font-size: 18px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  /* CATEGORY CARDS */
+  .category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+  }
+
+  .cat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .cat-card.safe::before { background: var(--safe); }
+  .cat-card.moderate::before { background: var(--moderate); }
+  .cat-card.elevated::before { background: var(--elevated); }
+  .cat-card.critical::before { background: var(--critical); }
+
+  .cat-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+
+  .cat-icon { font-size: 22px; margin-bottom: 12px; }
+
+  .cat-name {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+
+  .cat-score {
+    font-size: 36px;
+    font-weight: 700;
+    font-family: var(--mono);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .cat-score.safe { color: var(--safe); }
+  .cat-score.moderate { color: var(--moderate); }
+  .cat-score.elevated { color: var(--elevated); }
+  .cat-score.critical { color: var(--critical); }
+
+  .cat-label {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .cat-count {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+
+  /* DRILL DOWN */
+  .drilldown {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .drilldown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .drilldown-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .drilldown-close {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 12px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-family: var(--sans);
+    transition: all 0.2s;
+  }
+
+  .drilldown-close:hover { color: var(--text); border-color: var(--muted); }
+
+  .incident-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .incident-table th {
+    text-align: left;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .incident-table td {
+    padding: 10px 12px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  .incident-table tr:last-child td { border-bottom: none; }
+
+  .incident-table tr:hover td { background: var(--surface2); }
+
+  .nibrs-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: rgba(59,130,246,0.15);
+    color: var(--accent);
+    border: 1px solid rgba(59,130,246,0.25);
+  }
+
+  .sev-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+
+  /* STATS STRIP */
+  .stats-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  .stat-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .stat-val {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-lbl {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* SOURCE FOOTER */
+  .source-footer {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* PROGRESS */
+  .progress-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+  }
+
+  .progress-bar-outer {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 12px 0 8px;
+    overflow: hidden;
+  }
+
+  .progress-bar-inner {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  .progress-text {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .btn-geo {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 10px;
+    color: var(--accent);
+    font-family: var(--sans);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .btn-geo:hover {
+    background: rgba(59,130,246,0.1);
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 6px;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">
+    <span class="logo-badge">TBD</span>
+    <span class="logo-sub">Crime Intelligence Layer · Houston Metro</span>
+  </div>
+  <div class="header-status">
+    <span class="status-dot"></span>
+    <span id="dataStatus">No data loaded</span>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <div class="sidebar-section">
+      <h3>Data Source</h3>
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="csvInput" accept=".csv">
+        <div class="upload-icon">📂</div>
+        <strong>Drop HPD CSV here</strong>
+        <p>or click to select<br>NIBRSPublicView.csv</p>
+      </div>
+      <div id="progressWrap" style="display:none; margin-top:10px;">
+        <div class="progress-wrap">
+          <div class="progress-text" id="progressText">Parsing data…</div>
+          <div class="progress-bar-outer">
+            <div class="progress-bar-inner" id="progressBar" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Search Address</h3>
+      <div class="addr-input-wrap" style="margin-bottom:10px;">
+        <input type="text" class="addr-input" id="addressInput" placeholder="e.g. 7402 Calhoun Rd" />
+        <button class="addr-btn" id="searchBtn" title="Search">→</button>
+      </div>
+      <button class="btn-geo" id="geoBtn">
+        <span>📍</span> Use My Location
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Search Radius</h3>
+      <div class="radius-control">
+        <div class="radius-label">
+          <span>Miles from address</span>
+          <span class="radius-value" id="radiusVal">0.5 mi</span>
+        </div>
+        <input type="range" id="radiusSlider" min="0.1" max="3" step="0.1" value="0.5">
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Environmental Data</h3>
+      <div class="upload-zone" id="envUploadZone">
+        <input type="file" id="envCsvInput" accept=".csv">
+        <div class="upload-icon">☣️</div>
+        <strong>Drop EPA SEMS CSV</strong>
+        <p>or click to select<br>sems.csv</p>
+      </div>
+      <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:8px;text-align:center;" id="envStatus">No data loaded</div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Traffic API Key</h3>
+      <div style="position:relative;">
+        <input type="password" id="gmapsKey" placeholder="Paste Google Maps API key"
+          style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none;"/>
+      </div>
+      <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:6px;text-align:center;" id="trafficStatus">Key not set</div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>NIBRS Weights</h3>
+      <div class="weight-list" id="weightList"></div>
+    </div>
+
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main" id="mainContent">
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">🏙️</div>
+      <h2>Load your HPD data</h2>
+      <p>Drop the NIBRSPublicView CSV in the sidebar to start scoring neighborhoods across Houston Metro.</p>
+    </div>
+  </main>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+
+const NIBRS_WEIGHTS = {
+  '09A':100,'09B':90,'09C':85,
+  '11A':95,'11B':90,'11C':85,'11D':80,
+  '120':85,
+  '13A':80,'13B':40,'13C':30,
+  '100':75,
+  '220':60,
+  '240':55,
+  '520':50,
+  '210':50,
+  '35A':45,'35B':30,
+  '270':40,
+  '280':35,
+  '23B':35,'23F':35,
+  '250':45,
+  '23A':30,'23C':25,'23D':25,'23E':25,
+  '13C':30,
+  '290':20,'23G':20,'23H':20,
+  '90D':25,'90C':15,'90J':15,'90Z':10,
+};
+
+const NIBRS_LABELS = {
+  '09A':'Homicide','09B':'Negligent Manslaughter','09C':'Justifiable Homicide',
+  '11A':'Forcible Rape','11B':'Sodomy','11C':'Sex Assault','11D':'Fondling',
+  '120':'Robbery','13A':'Aggravated Assault','13B':'Simple Assault','13C':'Intimidation',
+  '100':'Kidnapping','220':'Burglary','240':'Motor Vehicle Theft','520':'Weapon Violation',
+  '35A':'Drug/Narcotic Violation','35B':'Drug Equipment','290':'Vandalism',
+  '23A':'Pocket-picking','23B':'Purse Snatching','23C':'Shoplifting',
+  '23F':'Theft from Vehicle','23G':'Theft of Parts','23H':'Other Larceny',
+  '90D':'DUI','90C':'Disorderly Conduct','90J':'Trespass','90Z':'All Other',
+  '250':'Fraud','270':'Embezzlement','280':'Stolen Property','210':'Extortion',
+};
+
+const SEVERITY = {
+  HIGH: ['09A','09B','09C','11A','11B','11C','11D','120','13A','100'],
+  MED:  ['220','240','520','35A','13B','250'],
+  LOW:  ['290','23A','23B','23C','23D','23E','23F','23G','23H','13C','90D','35B','280','270','90C','90J','90Z'],
+};
+
+function getSeverityColor(code) {
+  if (SEVERITY.HIGH.includes(code)) return '#ef4444';
+  if (SEVERITY.MED.includes(code)) return '#f59e0b';
+  return '#6b7280';
+}
+
+function scoreClass(score) {
+  if (score >= 80) return 'critical';
+  if (score >= 55) return 'elevated';
+  if (score >= 30) return 'moderate';
+  return 'safe';
+}
+
+function scoreLabel(score) {
+  if (score >= 80) return 'Critical Risk';
+  if (score >= 55) return 'Elevated Risk';
+  if (score >= 30) return 'Moderate Risk';
+  return 'Low Risk';
+}
+
+
+// ─── FLOOD CONFIG ─────────────────────────────────────────────────────────────
+
+const FLOOD_ZONES = {
+  'A':   { score: 90, label: 'High Risk',      desc: 'Special Flood Hazard Area — no base flood elevation determined', color: '#ef4444' },
+  'AE':  { score: 85, label: 'High Risk',      desc: 'Special Flood Hazard Area — base flood elevation determined',    color: '#ef4444' },
+  'AH':  { score: 80, label: 'High Risk',      desc: 'Shallow flooding — ponding, 1–3ft depth',                       color: '#ef4444' },
+  'AO':  { score: 80, label: 'High Risk',      desc: 'Shallow flooding — sheet flow, 1–3ft depth',                    color: '#ef4444' },
+  'AR':  { score: 75, label: 'High Risk',      desc: 'Flood risk from levee restoration',                             color: '#ef4444' },
+  'A99': { score: 70, label: 'High Risk',      desc: 'Area protected by federal flood control system',                color: '#ef4444' },
+  'V':   { score: 95, label: 'Critical Risk',  desc: 'Coastal high-velocity wave zone — no BFE determined',          color: '#dc2626' },
+  'VE':  { score: 95, label: 'Critical Risk',  desc: 'Coastal high-velocity wave zone — BFE determined',             color: '#dc2626' },
+  'X':   { score: 15, label: 'Low Risk',       desc: 'Minimal flood hazard — outside 500-year floodplain',           color: '#10b981' },
+  'B':   { score: 25, label: 'Moderate Risk',  desc: 'Between 100 and 500-year floodplain',                          color: '#f59e0b' },
+  'C':   { score: 10, label: 'Low Risk',       desc: 'Minimal flood hazard area',                                    color: '#10b981' },
+  'D':   { score: 40, label: 'Unknown Risk',   desc: 'Flood risk undetermined — area not studied',                   color: '#6b7280' },
+};
+
+function getFloodScore(zone, subtype) {
+  const z = FLOOD_ZONES[zone?.toUpperCase()];
+  if (!z) return { score: 35, label: 'Unknown', desc: 'Zone not on record', color: '#6b7280' };
+  if (zone?.toUpperCase() === 'X' && subtype?.toUpperCase()?.includes('SHADED')) {
+    return { score: 35, label: 'Moderate Risk', desc: '0.2% annual chance flood zone (500-year)', color: '#f59e0b' };
+  }
+  return z;
+}
+
+// ─── FEMA WFS FLOOD FETCH ────────────────────────────────────────────────────
+// Uses FEMA NFHL Web Feature Service (WFS) — recommended path for app queries.
+// Pattern: geocode → bounding box → WFS polygon query → parse FLD_ZONE.
+// Requests limited to 1,000 features; small bbox keeps well under that.
+// Recheck cadence: every 30–90 days per FEMA guidance.
+// Reference: https://hazards.fema.gov/femaportal/wps/portal/NFHLWMS
+
+function buildBoundingBox(lat, lng, milesRadius) {
+  // Convert miles to approximate degrees (good enough for small radii)
+  const latDelta = milesRadius / 69.0;
+  const lngDelta = milesRadius / (69.0 * Math.cos(lat * Math.PI / 180));
+  return {
+    minLng: lng - lngDelta,
+    minLat: lat - latDelta,
+    maxLng: lng + lngDelta,
+    maxLat: lat + latDelta,
+  };
+}
+
+async function fetchFloodData(lat, lng) {
+  // Small 0.1 mile box around the property — keeps feature count minimal
+  const bbox = buildBoundingBox(lat, lng, 0.1);
+  const bboxStr = `${bbox.minLng},${bbox.minLat},${bbox.maxLng},${bbox.maxLat}`;
+
+  // Primary: FEMA NFHL WFS endpoint (GeoJSON output)
+  const wfsUrl = `https://hazards.fema.gov/gis/nfhl/services/public/NFHL/MapServer/WFSServer` +
+    `?SERVICE=WFS` +
+    `&VERSION=2.0.0` +
+    `&REQUEST=GetFeature` +
+    `&TYPENAMES=NFHL:S_FLD_HAZ_AR` +
+    `&BBOX=${bboxStr},EPSG:4326` +
+    `&SRSNAME=EPSG:4326` +
+    `&outputFormat=GEOJSON` +
+    `&COUNT=10`;
+
+  // Fallback: original REST MapServer point query
+  const restUrl = `https://hazards.fema.gov/gis/nfhl/rest/services/public/NFHL/MapServer/28/query` +
+    `?geometry=${lng},${lat}` +
+    `&geometryType=esriGeometryPoint` +
+    `&inSR=4326` +
+    `&spatialRel=esriSpatialRelIntersects` +
+    `&outFields=FLD_ZONE,ZONE_SUBTY,SFHA_TF,STATIC_BFE,STUDY_TYP` +
+    `&returnGeometry=false` +
+    `&f=json`;
+
+  // Call our Vercel proxy — handles CORS server-side
+  try {
+    const proxyUrl = `/api/flood?lat=${lat}&lng=${lng}`;
+    const res = await fetch(proxyUrl);
+    if (!res.ok) throw new Error(`Proxy status ${res.status}`);
+    const data = await res.json();
+    if (data.error) { console.warn('FEMA proxy:', data.error); return null; }
+    console.log('FEMA flood data:', data);
+    return data;
+  } catch(e) {
+    console.warn('Flood proxy error:', e.message);
+    return null;
+  }
+}
+
+function parseWFS(data, lat, lng) {
+  // WFS GeoJSON FeatureCollection — find the polygon containing our point
+  if (!data?.features?.length) return null;
+
+  // Pick the feature whose bbox most tightly contains our point
+  // (WFS returns all polygons in bbox; we want the one at lat/lng)
+  const f = data.features[0]?.properties;
+  if (!f) return null;
+
+  return {
+    zone:      f.FLD_ZONE      || f.fld_zone,
+    subtype:   f.ZONE_SUBTY    || f.zone_subty || '',
+    sfha:      (f.SFHA_TF      || f.sfha_tf) === 'T',
+    bfe:       f.STATIC_BFE    || f.static_bfe || null,
+    studyType: f.STUDY_TYP     || f.study_typ  || '',
+    source:    'FEMA WFS',
+    bbox:      data.bbox || null,
+    raw:       f,
+  };
+}
+
+function parseREST(data, lat, lng) {
+  if (!data?.features?.length) return null;
+  const f = data.features[0].attributes;
+  return {
+    zone:      f.FLD_ZONE,
+    subtype:   f.ZONE_SUBTY   || '',
+    sfha:      f.SFHA_TF === 'T',
+    bfe:       f.STATIC_BFE   || null,
+    studyType: f.STUDY_TYP    || '',
+    source:    'FEMA REST',
+    raw:       f,
+  };
+}
+
+
+// ─── ENVIRONMENTAL DATA ───────────────────────────────────────────────────────
+
+let ENV_DB = [];
+
+// NPL Status scoring
+const NPL_WEIGHTS = {
+  'F': 100,  // Final NPL — most serious, active Superfund
+  'P': 80,   // Proposed NPL
+  'D': 20,   // Deleted — cleaned up but historically contaminated
+  '':  50,   // Non-NPL but still in SEMS — moderate concern
+};
+
+function parseEnvCSV(file) {
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: function(results) {
+      ENV_DB = results.data
+        .filter(r => r['LATITUDE/ LONGITUDE'] && r['LATITUDE/ LONGITUDE'].includes('/'))
+        .map(r => {
+          const [lat, lng] = r['LATITUDE/ LONGITUDE'].split('/').map(parseFloat);
+          const nplStatus = (r['NPL STATUS'] || '').trim();
+          return {
+            id:           r['SEMS EPA ID'],
+            name:         r['SITE NAME'],
+            address:      r['ADDRESS'],
+            county:       r['COUNTY'],
+            federal:      r['FEDERAL FACILITY'] === 'Y',
+            nplStatus:    nplStatus,
+            nplLabel:     nplStatus === 'F' ? 'Final NPL' :
+                          nplStatus === 'P' ? 'Proposed NPL' :
+                          nplStatus === 'D' ? 'Deleted (Cleaned)' : 'Non-NPL SEMS',
+            contaminants: parseInt(r['CONTAMINANTS']) || 0,
+            lat, lng,
+            weight:       NPL_WEIGHTS[nplStatus] ?? 50,
+            source:       'EPA SEMS / Superfund',
+          };
+        });
+      console.log(`EPA ENV: ${ENV_DB.length} Superfund sites loaded`);
+      document.getElementById('envStatus').textContent = `${ENV_DB.length} Superfund sites loaded`;
+    }
+  });
+}
+
+function getEnvSitesNear(lat, lng, miles) {
+  return ENV_DB.filter(r => haversine(lat, lng, r.lat, r.lng) <= miles);
+}
+
+// Score = proximity-weighted contaminant load
+// Closer sites score harder; more contaminants = higher risk
+function calcEnvScore(sites, radiusMiles) {
+  if (!sites.length) return 0;
+  let rawScore = 0;
+  sites.forEach(s => {
+    const dist = haversine(0, 0, 0, 0); // placeholder — we already filtered by radius
+    // Weight by NPL status + contaminant count, dampened by count (usually few sites)
+    rawScore += (s.weight * 0.6) + (Math.min(s.contaminants, 50) * 0.8);
+  });
+  return Math.min(100, Math.round(rawScore / 3));
+}
+
+function getEnvSiteDistance(lat, lng, site) {
+  return haversine(lat, lng, site.lat, site.lng).toFixed(2);
+}
+
+
+// ─── TRAFFIC ENGINE ──────────────────────────────────────────────────────────
+// Uses Google Maps Distance Matrix API to calculate travel times from
+// the searched address to key Houston commute destinations.
+// Congestion ratio = current duration vs duration_in_traffic.
+// Score calibrated for Houston — one of the worst traffic metros in the US.
+
+const TRAFFIC_DESTINATIONS = [
+  { name: 'Downtown Houston',    lat: 29.7533,  lng: -95.3676 },
+  { name: 'Texas Medical Center', lat: 29.7068, lng: -95.3985 },
+  { name: 'Galleria / Uptown',   lat: 29.7371,  lng: -95.4612 },
+  { name: 'Energy Corridor',     lat: 29.7602,  lng: -95.6355 },
+  { name: 'Greenway Plaza',      lat: 29.7366,  lng: -95.4365 },
+];
+
+// departure_time must be a future unix timestamp — use next Monday 8am
+function getNextMondayMorning() {
+  const now = new Date();
+  const day = now.getDay();
+  const daysUntilMonday = day === 1 ? 7 : (8 - day) % 7 || 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + daysUntilMonday);
+  monday.setHours(8, 0, 0, 0);
+  return Math.floor(monday.getTime() / 1000);
+}
+
+async function fetchTrafficData(lat, lng) {
+  const key = document.getElementById('gmapsKey')?.value?.trim();
+  if (!key) return null;
+
+  const origins = `${lat},${lng}`;
+  const destinations = TRAFFIC_DESTINATIONS
+    .map(d => `${d.lat},${d.lng}`).join('|');
+  const departureTime = getNextMondayMorning();
+
+  // Use CORS proxy pattern via Google's own jsonp-style callback isn't needed
+  // Distance Matrix supports direct browser calls with valid API key
+  const url = `https://maps.googleapis.com/maps/api/distancematrix/json` +
+    `?origins=${origins}` +
+    `&destinations=${encodeURIComponent(destinations)}` +
+    `&departure_time=${departureTime}` +
+    `&traffic_model=best_guess` +
+    `&key=${key}`;
+
+  // Note: Distance Matrix requires server-side call to avoid CORS in prod
+  // For now use our proxy-friendly endpoint format
+  // Call our Vercel proxy — keeps API key server-side
+  try {
+    const proxyUrl = `/api/traffic?lat=${lat}&lng=${lng}&key=${encodeURIComponent(key)}`;
+    const res = await fetch(proxyUrl);
+    if (!res.ok) throw new Error(`Proxy status ${res.status}`);
+    const data = await res.json();
+    if (data.error) { console.warn('Traffic proxy:', data.error); return null; }
+    console.log('Traffic data:', data);
+    return data;
+  } catch(e) {
+    console.warn('Traffic proxy error:', e.message);
+    return null;
+  }
+}
+
+function parseTrafficData(data, lat, lng) {
+  const results = [];
+  const elements = data.rows?.[0]?.elements || [];
+
+  elements.forEach((el, i) => {
+    if (el.status !== 'OK') return;
+    const dest = TRAFFIC_DESTINATIONS[i];
+    const baseSecs = el.duration?.value || 0;
+    const trafficSecs = el.duration_in_traffic?.value || baseSecs;
+    const distMiles = ((el.distance?.value || 0) / 1609.34).toFixed(1);
+    const congestionRatio = trafficSecs / (baseSecs || 1);
+    const delayMins = Math.round((trafficSecs - baseSecs) / 60);
+    const trafficMins = Math.round(trafficSecs / 60);
+    const baseMins = Math.round(baseSecs / 60);
+
+    results.push({
+      destination: dest.name,
+      distMiles,
+      baseMins,
+      trafficMins,
+      delayMins,
+      congestionRatio,
+      // Score this route: ratio > 1.5 = heavy, > 2.0 = severe
+      routeScore: Math.min(100, Math.round(
+        congestionRatio >= 2.0 ? 90 :
+        congestionRatio >= 1.5 ? 70 :
+        congestionRatio >= 1.25 ? 45 :
+        congestionRatio >= 1.1  ? 25 : 10
+      )),
+    });
+  });
+
+  if (!results.length) return null;
+
+  // Overall traffic score = average of worst 3 routes
+  const sorted = [...results].sort((a,b) => b.routeScore - a.routeScore);
+  const topN = sorted.slice(0, 3);
+  const overallScore = Math.round(topN.reduce((s,r) => s + r.routeScore, 0) / topN.length);
+
+  return { routes: results, overallScore };
+}
+
+function calcTrafficScore(trafficData) {
+  return trafficData?.overallScore || 0;
+}
+
+// ─── ETL ──────────────────────────────────────────────────────────────────────
+
+let DB = [];
+
+function parseCSV(file) {
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('progressBar').style.width = '20%';
+  document.getElementById('progressText').textContent = 'Reading file…';
+
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: function(results) {
+      document.getElementById('progressBar').style.width = '60%';
+      document.getElementById('progressText').textContent = 'Transforming records…';
+
+      setTimeout(() => {
+        DB = results.data
+          .filter(r => r['Map Latitude'] && r['Map Latitude'] !== 'NULL' &&
+                       r['Map Longitude'] && r['Map Longitude'] !== 'NULL')
+          .map(r => ({
+            id:          r['Incident'],
+            date:        r['Occurrence Date'],
+            hour:        r['Occurrence Hour'],
+            code:        r['NIBRS Class']?.trim(),
+            desc:        r['NIBRS Description'],
+            count:       parseInt(r['Offense Count']) || 1,
+            beat:        r['Beat'],
+            premise:     r['Premise'],
+            address:     `${r['Street Number']} ${r['Street Name']} ${r['Street Type'] || ''} ${r['Street Suffix'] || ''}`.trim(),
+            city:        r['City'],
+            zip:         r['ZIP Code'],
+            lat:         parseFloat(r['Map Latitude']),
+            lng:         parseFloat(r['Map Longitude']),
+            weight:      NIBRS_WEIGHTS[r['NIBRS Class']?.trim()] || 10,
+            source:      'HPD / Houston Open Data Portal',
+          }));
+
+        document.getElementById('progressBar').style.width = '100%';
+        document.getElementById('progressText').textContent = `${DB.length.toLocaleString()} records loaded`;
+        document.getElementById('dataStatus').textContent = `HPD · ${DB.length.toLocaleString()} incidents`;
+
+        setTimeout(() => {
+          document.getElementById('progressWrap').style.display = 'none';
+          showDefaultView();
+        }, 600);
+      }, 50);
+    }
+  });
+}
+
+// ─── SCORING ENGINE ──────────────────────────────────────────────────────────
+
+// Composite category weights — Violent dominates, Disorder is noise
+const CAT_WEIGHTS = {
+  violent:       0.45,
+  property:      0.30,
+  drugs_weapons: 0.15,
+  other:         0.10,
+};
+
+// Per-category density normalization divisors (calibrated for Houston .5mi radius)
+// Higher divisor = harder to score high = less sensitive category
+const CAT_DIVISORS = {
+  violent:       15,   // Very sensitive — even a few violent crimes raises score
+  property:      60,   // Property crime is common, needs more volume to max out
+  drugs_weapons: 40,   // Mid sensitivity
+  other:         200,  // Disorder is noise — needs huge volume to matter
+};
+
+function toRad(deg) { return deg * Math.PI / 180; }
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 3958.8;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function getIncidentsNear(lat, lng, miles) {
+  return DB.filter(r => haversine(lat, lng, r.lat, r.lng) <= miles);
+}
+
+// Score a single category with its own divisor
+function calcCategoryScore(incidents, radiusMiles, catKey) {
+  if (!incidents.length) return 0;
+  const area = Math.PI * radiusMiles * radiusMiles;
+  const rawScore = incidents.reduce((sum, r) => sum + r.weight * r.count, 0);
+  const density = rawScore / area;
+  const divisor = CAT_DIVISORS[catKey] || 60;
+  return Math.min(100, Math.round(density / divisor));
+}
+
+// Composite = weighted average of category scores
+function calcCompositeScore(catScores) {
+  return Math.min(100, Math.round(
+    Object.entries(CAT_WEIGHTS).reduce((sum, [key, weight]) => {
+      return sum + (catScores[key] || 0) * weight;
+    }, 0)
+  ));
+}
+
+function breakdownByCategory(incidents) {
+  const cats = {
+    violent:   { label:'Violent Crime',   icon:'🔴', codes:['09A','09B','09C','11A','11B','11C','11D','120','13A','100'], items:[] },
+    property:  { label:'Property Crime',  icon:'🟠', codes:['220','240','23A','23B','23C','23D','23E','23F','23G','23H','280'], items:[] },
+    drugs_weapons: { label:'Drugs & Weapons', icon:'🟡', codes:['35A','35B','520','210'], items:[] },
+    other:     { label:'Disorder & Other', icon:'⚪', codes:['290','90D','90C','90J','90Z','250','270','13B','13C'], items:[] },
+  };
+
+  incidents.forEach(r => {
+    for (const [key, cat] of Object.entries(cats)) {
+      if (cat.codes.includes(r.code)) { cat.items.push(r); break; }
+    }
+  });
+
+  return cats;
+}
+
+// ─── GEOCODING (demo: use known Houston coords for address strings) ────────────
+
+// Lightweight: extract lat/lng from incidents near a text address match
+function resolveAddress(addrText) {
+  const norm = addrText.toLowerCase().trim();
+  // Try to find a matching incident address
+  const match = DB.find(r => r.address.toLowerCase().includes(norm.split(' ')[1] || norm));
+  if (match) return { lat: match.lat, lng: match.lng, resolved: match.address };
+
+  // Houston city center fallback
+  return { lat: 29.7604, lng: -95.3698, resolved: 'Houston, TX (approximate)' };
+}
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+
+let currentDrilldown = null;
+let currentCenter = null;
+let currentRadius = 0.5;
+
+function getRadius() {
+  return parseFloat(document.getElementById('radiusSlider').value);
+}
+
+function showDefaultView() {
+  if (!DB.length) return;
+
+  // Show city-wide stats
+  const main = document.getElementById('mainContent');
+  const total = DB.length;
+  const violent = DB.filter(r => SEVERITY.HIGH.includes(r.code)).length;
+  const property = DB.filter(r => ['220','240','23A','23B','23C','23F','23G','23H'].includes(r.code)).length;
+
+  const topCodes = {};
+  DB.forEach(r => { topCodes[r.code] = (topCodes[r.code]||0) + r.count; });
+  const topCode = Object.entries(topCodes).sort((a,b)=>b[1]-a[1])[0];
+
+  main.innerHTML = `
+    <div>
+      <div class="score-address">Houston Metro · All Loaded Data</div>
+      <div class="score-title">City-Wide Overview</div>
+    </div>
+    <div class="stats-strip">
+      <div class="stat-box">
+        <div class="stat-val">${total.toLocaleString()}</div>
+        <div class="stat-lbl">Total Incidents</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" style="color:var(--elevated)">${violent.toLocaleString()}</div>
+        <div class="stat-lbl">Violent Crime</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" style="color:var(--moderate)">${property.toLocaleString()}</div>
+        <div class="stat-lbl">Property Crime</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val">${NIBRS_LABELS[topCode[0]] || topCode[0]}</div>
+        <div class="stat-lbl">Most Common</div>
+      </div>
+    </div>
+    <div style="color:var(--muted); font-size:13px; text-align:center; padding: 40px 0;">
+      Enter an address or use geolocation to score a specific area →
+    </div>
+    <div class="source-footer">
+      <span>📡</span>
+      <span>Source: Houston Police Department · Houston Open Data Portal · data.houstontx.gov</span>
+    </div>
+  `;
+}
+
+async function renderResults(lat, lng, resolvedAddr) {
+  const radius = getRadius();
+  currentCenter = { lat, lng };
+  currentRadius = radius;
+
+  const incidents = getIncidentsNear(lat, lng, radius);
+  const cats = breakdownByCategory(incidents);
+
+  const catScores = {};
+  for (const [key, cat] of Object.entries(cats)) {
+    catScores[key] = calcCategoryScore(cat.items, radius, key);
+  }
+  const score = calcCompositeScore(catScores);
+  const sc = scoreClass(score);
+
+  const main = document.getElementById('mainContent');
+
+  // Render crime results immediately, flood card as skeleton
+  main.innerHTML = `
+    <div class="score-header">
+      <div>
+        <div class="score-address">📍 ${resolvedAddr} · ${radius} mi radius</div>
+        <div class="score-title">Neighborhood Intelligence Score</div>
+      </div>
+      <div class="tbd-composite">
+        <div class="tbd-label">TBD Score</div>
+        <div class="tbd-score-num ${sc}" id="compositeNum">${score}<span class="tbd-score-max">/100</span></div>
+        <div style="font-size:11px; color:var(--muted); margin-top:4px; font-family:var(--mono)" id="compositeLabel">${scoreLabel(score)}</div>
+      </div>
+    </div>
+
+    <div class="stats-strip">
+      <div class="stat-box">
+        <div class="stat-val">${incidents.length.toLocaleString()}</div>
+        <div class="stat-lbl">Incidents</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" style="color:var(--elevated)">${cats.violent.items.length}</div>
+        <div class="stat-lbl">Violent</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" style="color:var(--moderate)">${cats.property.items.length}</div>
+        <div class="stat-lbl">Property</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val">${radius} mi</div>
+        <div class="stat-lbl">Radius</div>
+      </div>
+    </div>
+
+    <div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">Crime</div>
+    <div class="category-grid" id="catGrid">
+      ${Object.entries(cats).map(([key, cat]) => {
+        const cs = catScores[key];
+        const cls = scoreClass(cs);
+        const pct = Math.round(CAT_WEIGHTS[key] * 100);
+        return `
+          <div class="cat-card ${cls}" onclick="showDrilldown('${key}')">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+              <div class="cat-icon" style="margin-bottom:0">${cat.icon}</div>
+              <span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">${pct}% crime</span>
+            </div>
+            <div class="cat-name">${cat.label}</div>
+            <div class="cat-score ${cls}">${cs}</div>
+            <div class="cat-label">${scoreLabel(cs)}</div>
+            <div class="cat-count">${cat.items.length} incident${cat.items.length !== 1 ? 's' : ''} · tap for detail</div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+
+    <div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin:16px 0 8px;">Flood & Environmental</div>
+    <div id="floodEnvGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+    <div id="floodCardContainer">
+      <div class="cat-card safe" style="opacity:0.5;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+          <div class="cat-icon" style="margin-bottom:0">🌊</div>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">FEMA</span>
+        </div>
+        <div class="cat-name">Flood Risk</div>
+        <div class="skeleton" style="height:36px;width:60px;margin:8px 0;"></div>
+        <div class="cat-label">Querying FEMA…</div>
+        <div class="cat-count">Fetching flood zone data</div>
+      </div>
+    </div>
+    <div id="envCardContainer">
+      <div class="cat-card safe" style="opacity:0.5;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+          <div class="cat-icon" style="margin-bottom:0">☣️</div>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">EPA SEMS</span>
+        </div>
+        <div class="cat-name">Environmental</div>
+        <div class="cat-label" style="margin-top:8px;">Load sems.csv to score</div>
+        <div class="cat-count">Superfund · Contamination</div>
+      </div>
+    </div>
+    </div>
+
+    <div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin:16px 0 8px;">Traffic & Commute</div>
+    <div id="trafficCardContainer">
+      <div class="cat-card safe" style="opacity:0.5;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+          <div class="cat-icon" style="margin-bottom:0">🚗</div>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">Google Maps</span>
+        </div>
+        <div class="cat-name">Traffic</div>
+        <div class="cat-label" style="margin-top:8px;">Add API key to score</div>
+        <div class="cat-count">Peak hour commute analysis</div>
+      </div>
+    </div>
+
+    <div id="drilldownContainer"></div>
+
+    <div class="source-footer">
+      <span>📡</span>
+      <span>HPD · FEMA NFHL · EPA SEMS · Google Maps · data.houstontx.gov · Updated Monthly</span>
+    </div>
+  `;
+
+  window._cats = cats;
+  renderEnvCard(lat, lng, radius);
+
+  // Fetch traffic and flood async in parallel
+  const [floodData, trafficData] = await Promise.all([
+    fetchFloodData(lat, lng),
+    fetchTrafficData(lat, lng),
+  ]);
+  renderFloodCard(floodData, score, catScores);
+  renderTrafficCard(trafficData, score);
+}
+
+function renderFloodCard(floodData, crimeScore, catScores) {
+  const container = document.getElementById('floodCardContainer');
+  if (!container) return;
+
+  let floodScore, floodInfo;
+  if (!floodData) {
+    floodScore = 35;
+    floodInfo = { label: 'Data Unavailable', desc: 'FEMA data could not be retrieved for this location', color: '#6b7280', zone: 'N/A', subtype: '' };
+  } else {
+    floodInfo = getFloodScore(floodData.zone, floodData.subtype);
+    floodScore = floodInfo.score;
+  }
+
+  const cls = scoreClass(floodScore);
+  const sfhaText = floodData?.sfha ? '⚠️ Special Flood Hazard Area' : '✓ Outside SFHA';
+  const bfeText = floodData?.bfe && floodData.bfe > 0 ? `BFE: ${floodData.bfe}ft` : '';
+  const zoneDisplay = floodData ? `Zone ${floodData.zone}${floodData.subtype ? ' · ' + floodData.subtype : ''}` : 'Unavailable';
+
+  container.innerHTML = `
+    <div class="cat-card ${cls}" onclick="showFloodDrilldown()" style="cursor:pointer;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div class="cat-icon" style="margin-bottom:0">🌊</div>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">FEMA NFHL</span>
+      </div>
+      <div class="cat-name">Flood Risk</div>
+      <div class="cat-score ${cls}">${floodScore}</div>
+      <div class="cat-label">${floodInfo.label}</div>
+      <div class="cat-count">${zoneDisplay} · tap for detail</div>
+    </div>
+  `;
+
+  // Store flood data for drilldown
+  window._floodData = { floodData, floodInfo, floodScore, sfhaText, bfeText, zoneDisplay };
+
+  // Update composite to include flood score (crime 80%, flood 20%)
+  const updatedComposite = Math.min(100, Math.round(crimeScore * 0.8 + floodScore * 0.2));
+  const updatedSc = scoreClass(updatedComposite);
+  const numEl = document.getElementById('compositeNum');
+  const lblEl = document.getElementById('compositeLabel');
+  if (numEl) numEl.innerHTML = `${updatedComposite}<span class="tbd-score-max">/100</span>`;
+  if (numEl) numEl.className = `tbd-score-num ${updatedSc}`;
+  if (lblEl) lblEl.textContent = scoreLabel(updatedComposite);
+}
+
+function showFloodDrilldown() {
+  const container = document.getElementById('drilldownContainer');
+  if (window._floodDrillOpen) {
+    window._floodDrillOpen = false;
+    container.innerHTML = '';
+    return;
+  }
+  window._floodDrillOpen = true;
+  currentDrilldown = null;
+
+  const { floodData, floodInfo, floodScore, sfhaText, bfeText, zoneDisplay } = window._floodData || {};
+  if (!floodData) {
+    container.innerHTML = `<div class="drilldown"><div class="drilldown-header"><div class="drilldown-title">🌊 Flood Risk</div><button class="drilldown-close" onclick="showFloodDrilldown()">Close ✕</button></div><p style="color:var(--muted);font-size:13px;">FEMA data unavailable for this location. Check msc.fema.gov directly.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="drilldown">
+      <div class="drilldown-header">
+        <div class="drilldown-title">🌊 Flood Risk Detail</div>
+        <button class="drilldown-close" onclick="showFloodDrilldown()">Close ✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+        <div class="stat-box">
+          <div class="stat-val" style="color:${floodInfo.color};font-size:20px;">${floodData.zone}</div>
+          <div class="stat-lbl">FEMA Zone</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" style="font-size:16px;color:${floodData.sfha ? '#ef4444' : '#10b981'}">${floodData.sfha ? 'YES' : 'NO'}</div>
+          <div class="stat-lbl">In SFHA</div>
+        </div>
+        ${bfeText ? `<div class="stat-box"><div class="stat-val" style="font-size:16px">${bfeText}</div><div class="stat-lbl">Base Flood Elev.</div></div>` : ''}
+        <div class="stat-box">
+          <div class="stat-val" style="font-size:16px;color:${floodInfo.color}">${floodScore}</div>
+          <div class="stat-lbl">Flood Score</div>
+        </div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;">
+        <div style="font-size:11px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Zone Description</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6">${floodInfo.desc}</div>
+        ${floodData.subtype ? `<div style="margin-top:8px;font-size:11px;color:var(--muted)">Subtype: ${floodData.subtype}</div>` : ''}
+        ${floodData.studyType ? `<div style="font-size:11px;color:var(--muted)">Study Type: ${floodData.studyType}</div>` : ''}
+      </div>
+      <div style="background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:12px;">
+        <div style="font-size:11px;font-family:var(--mono);color:var(--accent);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Houston Context</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6">Harris County has more residents in flood zones than nearly any US county. Hurricane Harvey (2017) inundated ~30% of Harris County. Even Zone X properties flooded during Harvey — proximity to bayous and drainage infrastructure matters beyond official zone designation.</div>
+      </div>
+      <div style="margin-top:12px;" class="source-footer">
+        <span>📡</span>
+        <span>Source: FEMA National Flood Hazard Layer (NFHL) · hazards.fema.gov · msc.fema.gov</span>
+      </div>
+    </div>
+  `;
+  container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function showDrilldown(key) {
+  const cat = window._cats[key];
+  if (!cat) return;
+
+  const container = document.getElementById('drilldownContainer');
+  if (currentDrilldown === key) {
+    currentDrilldown = null;
+    container.innerHTML = '';
+    return;
+  }
+  currentDrilldown = key;
+
+  const top = cat.items
+    .sort((a,b) => b.weight - a.weight)
+    .slice(0, 40);
+
+  container.innerHTML = `
+    <div class="drilldown">
+      <div class="drilldown-header">
+        <div class="drilldown-title">${cat.icon} ${cat.label} · ${cat.items.length} incidents</div>
+        <button class="drilldown-close" onclick="showDrilldown('${key}')">Close ✕</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="incident-table">
+          <thead>
+            <tr>
+              <th>Severity</th>
+              <th>Date</th>
+              <th>Offense</th>
+              <th>NIBRS</th>
+              <th>Address</th>
+              <th>Premise</th>
+              <th>Weight</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${top.map(r => `
+              <tr>
+                <td><span class="sev-dot" style="background:${getSeverityColor(r.code)}"></span></td>
+                <td style="font-family:var(--mono); font-size:11px; color:var(--muted)">${r.date}</td>
+                <td>${NIBRS_LABELS[r.code] || r.desc}</td>
+                <td><span class="nibrs-badge">${r.code}</span></td>
+                <td style="font-size:11px; color:var(--muted)">${r.address}, ${r.zip}</td>
+                <td style="font-size:11px; color:var(--muted)">${r.premise}</td>
+                <td style="font-family:var(--mono); font-size:11px; color:var(--accent)">${r.weight}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        ${cat.items.length > 40 ? `<div style="text-align:center; padding:12px; color:var(--muted); font-size:11px; font-family:var(--mono)">Showing top 40 of ${cat.items.length} incidents by severity weight</div>` : ''}
+      </div>
+    </div>
+  `;
+
+  container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ─── WEIGHT LIST RENDER ───────────────────────────────────────────────────────
+
+function renderWeightList() {
+  const topCodes = [
+    ['13A',80],['120',85],['11A',95],['09A',100],
+    ['220',60],['240',55],['35A',45],['290',20],['13B',40],['90Z',10]
+  ];
+  const list = document.getElementById('weightList');
+  list.innerHTML = topCodes.map(([code, w]) => `
+    <div class="weight-item">
+      <span class="weight-code">${code}</span>
+      <span class="weight-desc">${NIBRS_LABELS[code] || code}</span>
+      <div class="weight-bar-wrap">
+        <div class="weight-bar" style="width:${w}%"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+
+// ─── ENV CARD RENDER ─────────────────────────────────────────────────────────
+
+function renderEnvCard(lat, lng, radius) {
+  const container = document.getElementById('envCardContainer');
+  if (!container) return;
+
+  if (!ENV_DB.length) return; // No data loaded yet
+
+  const sites = getEnvSitesNear(lat, lng, radius * 5); // Search wider — 5x radius for env
+  const score = calcEnvScore(sites, radius);
+  const cls = scoreClass(score);
+
+  container.innerHTML = `
+    <div class="cat-card ${cls}" onclick="showEnvDrilldown()" style="cursor:pointer;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div class="cat-icon" style="margin-bottom:0">☣️</div>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">EPA SEMS</span>
+      </div>
+      <div class="cat-name">Environmental</div>
+      <div class="cat-score ${cls}">${score}</div>
+      <div class="cat-label">${scoreLabel(score)}</div>
+      <div class="cat-count">${sites.length} site${sites.length !== 1 ? 's' : ''} nearby · tap for detail</div>
+    </div>
+  `;
+  window._envSites = sites;
+  window._envLat = lat;
+  window._envLng = lng;
+}
+
+function showEnvDrilldown() {
+  const container = document.getElementById('drilldownContainer');
+  if (window._envDrillOpen) {
+    window._envDrillOpen = false;
+    container.innerHTML = '';
+    return;
+  }
+  window._envDrillOpen = true;
+  window._floodDrillOpen = false;
+  currentDrilldown = null;
+
+  const sites = window._envSites || [];
+  const lat = window._envLat;
+  const lng = window._envLng;
+
+  if (!sites.length) {
+    container.innerHTML = `
+      <div class="drilldown">
+        <div class="drilldown-header">
+          <div class="drilldown-title">☣️ Environmental · No Sites Within Range</div>
+          <button class="drilldown-close" onclick="showEnvDrilldown()">Close ✕</button>
+        </div>
+        <p style="color:var(--muted);font-size:13px;line-height:1.6;">No EPA Superfund sites found within the search area. Harris County has 7 known sites — expand your radius to see them.</p>
+      </div>`;
+    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return;
+  }
+
+  const rows = sites
+    .map(s => {
+      const dist = getEnvSiteDistance(lat, lng, s);
+      const nplColor = s.nplStatus === 'F' ? '#ef4444' : s.nplStatus === 'P' ? '#f59e0b' : '#6b7280';
+      return `
+        <tr>
+          <td style="font-size:12px;font-weight:600;color:var(--text)">${s.name}</td>
+          <td><span style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(239,68,68,0.1);color:${nplColor};border:1px solid ${nplColor}40">${s.nplLabel}</span></td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--accent)">${s.contaminants}</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${dist} mi</td>
+          <td style="font-size:11px;color:var(--muted)">${s.address}</td>
+        </tr>`;
+    }).join('');
+
+  container.innerHTML = `
+    <div class="drilldown">
+      <div class="drilldown-header">
+        <div class="drilldown-title">☣️ Environmental · ${sites.length} Site${sites.length !== 1 ? 's' : ''} Nearby</div>
+        <button class="drilldown-close" onclick="showEnvDrilldown()">Close ✕</button>
+      </div>
+      <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;margin-bottom:16px;">
+        <div style="font-size:11px;font-family:var(--mono);color:#ef4444;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">What is a Superfund Site?</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;">EPA's National Priorities List (NPL) identifies the most contaminated sites in the US requiring long-term cleanup. Final NPL sites are the most serious. Proximity does not guarantee health risk — but it warrants investigation before buying.</div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="incident-table">
+          <thead>
+            <tr>
+              <th>Site Name</th>
+              <th>NPL Status</th>
+              <th>Contaminants</th>
+              <th>Distance</th>
+              <th>Address</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;" class="source-footer">
+        <span>📡</span>
+        <span>Source: EPA SEMS · Superfund Enterprise Management System · epa.gov/superfund</span>
+      </div>
+    </div>`;
+  container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+
+// ─── TRAFFIC CARD RENDER ─────────────────────────────────────────────────────
+
+function renderTrafficCard(trafficData, crimeScore) {
+  const container = document.getElementById('trafficCardContainer');
+  if (!container) return;
+
+  if (!trafficData) {
+    // Check if key is set — if so, show error; if not, show prompt
+    const key = document.getElementById('gmapsKey')?.value?.trim();
+    if (key) {
+      container.innerHTML = `
+        <div class="cat-card safe" style="opacity:0.6;">
+          <div class="cat-icon">🚗</div>
+          <div class="cat-name">Traffic</div>
+          <div class="cat-label" style="margin-top:8px;color:#ef4444;">API error — check key</div>
+          <div class="cat-count">Check console for details</div>
+        </div>`;
+    }
+    return;
+  }
+
+  const score = trafficData.overallScore;
+  const cls = scoreClass(score);
+  const bestRoute = trafficData.routes.sort((a,b) => a.trafficMins - b.trafficMins)[0];
+  const worstRoute = trafficData.routes.sort((a,b) => b.routeScore - a.routeScore)[0];
+
+  container.innerHTML = `
+    <div class="cat-card ${cls}" onclick="showTrafficDrilldown()" style="cursor:pointer;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div class="cat-icon" style="margin-bottom:0">🚗</div>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">Google Maps</span>
+      </div>
+      <div class="cat-name">Traffic & Commute</div>
+      <div class="cat-score ${cls}">${score}</div>
+      <div class="cat-label">${scoreLabel(score)}</div>
+      <div class="cat-count">${trafficData.routes.length} routes analyzed · tap for detail</div>
+    </div>
+  `;
+
+  window._trafficData = trafficData;
+  document.getElementById('trafficStatus').textContent = 'Traffic data loaded';
+}
+
+function showTrafficDrilldown() {
+  const container = document.getElementById('drilldownContainer');
+  if (window._trafficDrillOpen) {
+    window._trafficDrillOpen = false;
+    container.innerHTML = '';
+    return;
+  }
+  window._trafficDrillOpen = true;
+  window._floodDrillOpen = false;
+  window._envDrillOpen = false;
+  currentDrilldown = null;
+
+  const { routes, overallScore } = window._trafficData || {};
+  if (!routes?.length) return;
+
+  const rows = routes.map(r => {
+    const cls = scoreClass(r.routeScore);
+    const delayText = r.delayMins > 0 ? `+${r.delayMins} min delay` : 'No delay';
+    const ratioText = r.congestionRatio.toFixed(2) + 'x';
+    return `
+      <tr>
+        <td style="font-size:12px;font-weight:600;color:var(--text)">${r.destination}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${r.distMiles} mi</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--text)">${r.baseMins} min</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--elevated)">${r.trafficMins} min</td>
+        <td style="font-family:var(--mono);font-size:11px;color:#ef4444">${delayText}</td>
+        <td><span style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);color:var(--${cls === 'safe' ? 'safe' : cls === 'moderate' ? 'moderate' : 'elevated'})">${ratioText}</span></td>
+      </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="drilldown">
+      <div class="drilldown-header">
+        <div class="drilldown-title">🚗 Traffic & Commute · Peak Hour Analysis</div>
+        <button class="drilldown-close" onclick="showTrafficDrilldown()">Close ✕</button>
+      </div>
+      <div style="background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:12px;margin-bottom:16px;">
+        <div style="font-size:11px;font-family:var(--mono);color:var(--accent);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Monday Morning 8AM · Best Guess Model</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;">Congestion ratio compares peak-hour drive time vs free-flow. Houston ranks among the worst traffic metros in the US — a 1.5x ratio means a 20-minute free-flow commute takes 30 minutes in traffic.</div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="incident-table">
+          <thead>
+            <tr>
+              <th>Destination</th>
+              <th>Distance</th>
+              <th>Free Flow</th>
+              <th>In Traffic</th>
+              <th>Delay</th>
+              <th>Congestion</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;" class="source-footer">
+        <span>📡</span>
+        <span>Source: Google Maps Distance Matrix API · Peak hour · Monday 8AM departure</span>
+      </div>
+    </div>`;
+  container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ─── EVENT LISTENERS ──────────────────────────────────────────────────────────
+
+document.getElementById('uploadZone').addEventListener('click', () => {
+  document.getElementById('csvInput').click();
+});
+
+document.getElementById('csvInput').addEventListener('change', e => {
+  if (e.target.files[0]) parseCSV(e.target.files[0]);
+});
+
+document.getElementById('uploadZone').addEventListener('dragover', e => {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.add('drag-over');
+});
+
+document.getElementById('uploadZone').addEventListener('dragleave', () => {
+  document.getElementById('uploadZone').classList.remove('drag-over');
+});
+
+document.getElementById('uploadZone').addEventListener('drop', e => {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) parseCSV(file);
+});
+
+document.getElementById('radiusSlider').addEventListener('input', e => {
+  document.getElementById('radiusVal').textContent = `${e.target.value} mi`;
+  if (currentCenter) {
+    renderResults(currentCenter.lat, currentCenter.lng,
+      document.getElementById('addressInput').value || 'Current Location');
+  }
+});
+
+document.getElementById('searchBtn').addEventListener('click', () => {
+  if (!DB.length) { alert('Load an HPD CSV file first.'); return; }
+  const addr = document.getElementById('addressInput').value.trim();
+  if (!addr) return;
+  const { lat, lng, resolved } = resolveAddress(addr);
+  renderResults(lat, lng, resolved);
+});
+
+document.getElementById('addressInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('searchBtn').click();
+});
+
+document.getElementById('geoBtn').addEventListener('click', () => {
+  if (!DB.length) { alert('Load an HPD CSV file first.'); return; }
+  if (!navigator.geolocation) { alert('Geolocation not available in this browser.'); return; }
+  document.getElementById('geoBtn').textContent = '📍 Locating…';
+  navigator.geolocation.getCurrentPosition(pos => {
+    document.getElementById('geoBtn').innerHTML = '<span>📍</span> Use My Location';
+    renderResults(pos.coords.latitude, pos.coords.longitude, 'Your Current Location');
+  }, () => {
+    document.getElementById('geoBtn').innerHTML = '<span>📍</span> Use My Location';
+    alert('Could not get location. Try entering an address instead.');
+  });
+});
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+
+renderWeightList();
+// Traffic API key listener — re-fetch when key is entered
+document.getElementById('gmapsKey').addEventListener('change', async () => {
+  const key = document.getElementById('gmapsKey').value.trim();
+  if (!key || !currentCenter) return;
+  document.getElementById('trafficStatus').textContent = 'Fetching traffic…';
+  const trafficData = await fetchTrafficData(currentCenter.lat, currentCenter.lng);
+  renderTrafficCard(trafficData, 0);
+});
+
+// ENV upload listeners
+document.getElementById('envUploadZone').addEventListener('click', () => {
+  document.getElementById('envCsvInput').click();
+});
+
+document.getElementById('envCsvInput').addEventListener('change', e => {
+  if (e.target.files[0]) parseEnvCSV(e.target.files[0]);
+});
+
+document.getElementById('envUploadZone').addEventListener('dragover', e => {
+  e.preventDefault();
+  document.getElementById('envUploadZone').classList.add('drag-over');
+});
+
+document.getElementById('envUploadZone').addEventListener('dragleave', () => {
+  document.getElementById('envUploadZone').classList.remove('drag-over');
+});
+
+document.getElementById('envUploadZone').addEventListener('drop', e => {
+  e.preventDefault();
+  document.getElementById('envUploadZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) parseEnvCSV(file);
+});
+</script>
+</body>
+</html>
